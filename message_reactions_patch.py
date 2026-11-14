@@ -11,7 +11,6 @@ REACTION_GIF_ENDPOINTS = {
     "slap": ("https://nekos.best/api/v2/slap", "https://api.waifu.pics/sfw/slap"),
     "spank": ("https://nekos.best/api/v2/spank", "https://api.waifu.pics/sfw/spank"),
     "hug": ("https://nekos.best/api/v2/hug", "https://api.waifu.pics/sfw/hug"),
-    # Anime-style action GIFs only; the command text stays non-graphic roleplay.
     "kill": ("https://nekos.best/api/v2/kick", "https://api.waifu.pics/sfw/kill"),
 }
 REACTION_GIF_FALLBACKS = {
@@ -76,11 +75,7 @@ class HugReturnView(discord.ui.View):
     async def return_hug(self, interaction, button):
         self.finished = True
         button.disabled = True
-        embed = discord.Embed(
-            description=f"🤗 {self.recipient.mention} le devuelve el abrazo a {self.initiator.mention}.",
-            color=discord.Color.blurple(),
-        )
-        embed.set_author(name=f"{self.recipient} 🤗 {self.initiator}", icon_url=self.recipient.display_avatar.url)
+        embed = discord.Embed(description=f"🤗 {self.recipient.mention} le devuelve el abrazo a {self.initiator.mention}.", color=discord.Color.blurple())
         image = await random_anime_gif("hug")
         if image:
             embed.set_image(url=image)
@@ -145,16 +140,12 @@ class ReactionChoiceView(discord.ui.View):
 
 async def handle_reaction_command(message, content):
     command = content.split(maxsplit=1)[0].casefold() if content else ""
-
     if command == "?banana":
         target = message.mentions[0] if message.mentions else message.author
         if getattr(target, "bot", False):
             target = message.author
         size = random.randint(1, 40)
-        embed = discord.Embed(
-            description=f"La banana de {target.mention} mide **{size} cm** 🍌",
-            color=discord.Color.blurple(),
-        )
+        embed = discord.Embed(description=f"La banana de {target.mention} mide **{size} cm** 🍌", color=discord.Color.blurple())
         embed.set_author(name=str(target), icon_url=target.display_avatar.url)
         embed.set_image(url=random.choice(BANANA_GIFS))
         embed.set_footer(text=f"Evaluación de la banana de {target}", icon_url=target.display_avatar.url)
@@ -170,14 +161,13 @@ async def handle_reaction_command(message, content):
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 target = None
         if target is None:
-            await message.reply(f"Menciona o responde a alguien con `{command}.", mention_author=False)
+            await message.reply(f"Menciona o responde a alguien con `{command}`.", mention_author=False)
             return True
         if target.bot or target.id == message.author.id:
             await message.reply("Menciona o responde a otra persona distinta de ti.", mention_author=False)
             return True
         if command == "?hug":
             embed = discord.Embed(description=f"🤗 {message.author.mention} ha abrazado a {target.mention}.", color=discord.Color.blurple())
-            embed.set_author(name=f"{message.author} 🤗 {target}", icon_url=message.author.display_avatar.url)
             image = await random_anime_gif("hug")
             if image:
                 embed.set_image(url=image)
@@ -192,17 +182,13 @@ async def handle_reaction_command(message, content):
 
     if command not in ("?kiss", "?slap"):
         return False
-    reference = message.reference
     target = message.mentions[0] if message.mentions else None
-    if target is None and reference and reference.message_id:
-        referenced = reference.resolved
-        if referenced is None or not hasattr(referenced, "author"):
-            try:
-                channel = message.guild.get_channel(reference.channel_id) or await client.fetch_channel(reference.channel_id)
-                referenced = await channel.fetch_message(reference.message_id)
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                referenced = None
-        target = getattr(referenced, "author", None)
+    if target is None and message.reference and message.reference.message_id:
+        try:
+            referenced = message.reference.resolved or await message.channel.fetch_message(message.reference.message_id)
+            target = getattr(referenced, "author", None)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            target = None
     if target is None:
         await message.reply(f"Menciona o responde a una persona con `{command}`.", mention_author=False)
         return True

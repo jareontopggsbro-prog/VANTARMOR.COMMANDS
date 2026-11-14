@@ -88,36 +88,36 @@ def patch_app_file(app_file: Path) -> None:
     if handler not in source:
         raise RuntimeError("No encontré el manejador de comandos de reacción en app.py.")
 
-    # Replace our generated block on each run so deployment is idempotent and
-    # cannot retain stale command implementations.
+    # Replace the generated block on each run to keep startup idempotent.
     if MARKER in source:
         start = source.index(MARKER)
         end = source.index(handler, start)
         source = source[:start] + source[end:]
     source = source.replace(handler, HELPERS + "\n\n" + handler, 1)
 
-    # Put ?kill before the handler's unknown-command return.
     insertion = '    if command not in ("?kiss", "?slap"):\n'
     if insertion not in source:
         raise RuntimeError("No encontré el punto de inserción para ?kill.")
     source = source.replace(insertion, KILL_HANDLER + insertion, 1)
 
-    # Add a response button to ?spank, keeping the requested action playful
-    # and explicitly non-sexual.
-    spank_text = 'description=f"🍑 {message.author.mention} le da una palmadita traviesa a {target.mention}."'
-    spank_at = source.find(spank_text)
-    if spank_at < 0:
-        raise RuntimeError("No encontré el bloque de ?spank.")
-    reply_start = source.find("        await message.reply(\n", spank_at)
+    # Find the spank branch structurally instead of relying on exact copy text.
+    spank_branch = '        embed = discord.Embed(description=f"🍑 {message.author.mention} le da una palmadita juguetona en la ropa a {target.mention}. *(Broma amistosa.)*", color=discord.Color.blurple())\n'
+    if spank_branch not in source:
+        raise RuntimeError("No encontré la rama de ?spank en el manejador.")
+    reply_start = source.find("        await message.reply(", source.index(spank_branch))
     reply_end = source.find("        return True", reply_start) if reply_start >= 0 else -1
     if reply_start < 0 or reply_end < 0:
         raise RuntimeError("No encontré la respuesta de ?spank.")
     block = source[reply_start:reply_end]
     if "SpankReturnView(message.author, target)" not in block:
-        embed_line = "            embed=embed,\n"
-        if embed_line not in block:
-            raise RuntimeError("No encontré el embed en la respuesta de ?spank.")
-        block = block.replace(embed_line, embed_line + "            view=SpankReturnView(message.author, target),\n", 1)
+        old_reply = '        await message.reply(embed=embed, mention_author=False, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))\n'
+        if old_reply not in block:
+            raise RuntimeError("No encontré la llamada de respuesta de ?spank.")
+        block = block.replace(
+            old_reply,
+            '        await message.reply(embed=embed, view=SpankReturnView(message.author, target), mention_author=False, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))\n',
+            1,
+        )
         source = source[:reply_start] + block + source[reply_end:]
 
     app_file.write_text(source, encoding="utf-8")
