@@ -11,6 +11,8 @@ from ticket_image_patch import patch_app_file as patch_ticket_image
 from blue_reaction_embeds_patch import patch_app_file as patch_blue_reaction_embeds
 from premium_security_patch import patch_app_file as patch_premium_security
 from dedupe_backup_command import remove_backup_commands
+from kill_roleplay_buttons_patch import patch_app_file as patch_kill_roleplay_buttons
+from giveaway_patch import patch_app_file as patch_giveaway
 from guild_profile_settings import install_guild_profile_settings
 from profile_upload_support import install_profile_upload_support
 import web_server
@@ -49,12 +51,8 @@ def main():
         raise FileNotFoundError(f"No encontré el archivo del bot: {APP_FILE}")
     fix_welcome_async_declaration()
     fix_optional_import()
-
-    # Make the generated backup slash command idempotent across container restarts.
     remove_backup_commands(APP_FILE)
 
-    # Install the base message-command dispatcher first, then extend it with
-    # reaction/roleplay commands. Do not re-run the base patch afterward.
     patch_message_features(APP_FILE)
     patch_reaction_commands(APP_FILE)
     patch_announcement(APP_FILE)
@@ -64,6 +62,8 @@ def main():
     patch_blue_reaction_embeds(APP_FILE)
     patch_premium_security(APP_FILE)
     patch_global_commands(APP_FILE)
+    patch_kill_roleplay_buttons(APP_FILE)
+    patch_giveaway(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
     required_handlers = (
@@ -71,11 +71,13 @@ def main():
         'if await handle_reaction_command(message, content):',
         'if command == "?kill":',
         "class KillRoleplayView(",
-        "class SpankReturnView(",
+        'label="💀 Vengar"',
+        'label="👻 Asustar"',
+        "class GiveawayView(",
     )
     missing = [item for item in required_handlers if item not in final_source]
     if missing:
-        raise RuntimeError(f"No se instalaron los comandos de mensaje requeridos: {missing}")
+        raise RuntimeError(f"No se instalaron los comandos requeridos: {missing}")
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
