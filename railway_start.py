@@ -57,6 +57,14 @@ def main():
     patch_blue_reaction_embeds(APP_FILE)
     patch_premium_security(APP_FILE)
     patch_global_commands(APP_FILE)
+    # Re-apply message-command helpers after every other source patch. The
+    # on_message dispatcher must never reference an undefined helper.
+    patch_message_features(APP_FILE)
+    final_source = APP_FILE.read_text(encoding="utf-8")
+    if "async def handle_reaction_command(message, content):" not in final_source:
+        raise RuntimeError("No se pudo instalar handle_reaction_command; no iniciaré con comandos ? rotos.")
+    if "if await handle_reaction_command(message, content):" not in final_source:
+        raise RuntimeError("No se pudo conectar handle_reaction_command con on_message.")
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
     start_website()
