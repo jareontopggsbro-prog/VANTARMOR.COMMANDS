@@ -18,6 +18,7 @@ from web_server import start_website
 ROOT = Path(__file__).resolve().parent
 APP_FILE = ROOT / "app.py"
 WELCOME_FILE = ROOT / "welcome_system.py"
+SECURITY_FILE = ROOT / "premium_security_system.py"
 
 
 def fix_welcome_async_declaration():
@@ -30,10 +31,23 @@ def fix_welcome_async_declaration():
         print("Corregida la declaración async de configure_welcome.")
 
 
+def fix_optional_import():
+    """Ensure security command annotations can resolve Optional at import time."""
+    source = SECURITY_FILE.read_text(encoding="utf-8")
+    if "Optional[" in source and "from typing import Optional" not in source:
+        marker = "from pathlib import Path\n"
+        if marker not in source:
+            raise RuntimeError("No encontré el bloque de imports de premium_security_system.py")
+        source = source.replace(marker, marker + "from typing import Optional\n", 1)
+        SECURITY_FILE.write_text(source, encoding="utf-8")
+        print("Corregido el import de Optional en premium_security_system.py.")
+
+
 def main():
     if not APP_FILE.is_file():
         raise FileNotFoundError(f"No encontré el archivo del bot: {APP_FILE}")
     fix_welcome_async_declaration()
+    fix_optional_import()
     patch_message_features(APP_FILE)
     patch_reaction_commands(APP_FILE)
     patch_announcement(APP_FILE)
