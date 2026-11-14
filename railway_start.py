@@ -48,6 +48,10 @@ def main():
         raise FileNotFoundError(f"No encontré el archivo del bot: {APP_FILE}")
     fix_welcome_async_declaration()
     fix_optional_import()
+
+    # Install the base message-command dispatcher first, then extend it with
+    # reaction/roleplay commands. Do not re-run the base patch afterward: it
+    # intentionally replaces its generated block and would remove extensions.
     patch_message_features(APP_FILE)
     patch_reaction_commands(APP_FILE)
     patch_announcement(APP_FILE)
@@ -57,14 +61,19 @@ def main():
     patch_blue_reaction_embeds(APP_FILE)
     patch_premium_security(APP_FILE)
     patch_global_commands(APP_FILE)
-    # Re-apply message-command helpers after every other source patch. The
-    # on_message dispatcher must never reference an undefined helper.
-    patch_message_features(APP_FILE)
+
     final_source = APP_FILE.read_text(encoding="utf-8")
-    if "async def handle_reaction_command(message, content):" not in final_source:
-        raise RuntimeError("No se pudo instalar handle_reaction_command; no iniciaré con comandos ? rotos.")
-    if "if await handle_reaction_command(message, content):" not in final_source:
-        raise RuntimeError("No se pudo conectar handle_reaction_command con on_message.")
+    required_handlers = (
+        "async def handle_reaction_command(message, content):",
+        'if await handle_reaction_command(message, content):',
+        'if command == "?kill":',
+        "class KillRoleplayView(",
+        "class SpankReturnView(",
+    )
+    missing = [item for item in required_handlers if item not in final_source]
+    if missing:
+        raise RuntimeError(f"No se instalaron los comandos de mensaje requeridos: {missing}")
+
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
     start_website()

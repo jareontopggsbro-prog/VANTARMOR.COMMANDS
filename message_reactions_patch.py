@@ -9,16 +9,17 @@ BANANA_GIFS = (
 REACTION_GIF_ENDPOINTS = {
     "kiss": ("https://nekos.best/api/v2/kiss", "https://api.waifu.pics/sfw/kiss"),
     "slap": ("https://nekos.best/api/v2/slap", "https://api.waifu.pics/sfw/slap"),
-    # Prefer APIs with an actual anime-spank category; do not substitute a slap GIF.
     "spank": ("https://nekos.best/api/v2/spank", "https://api.waifu.pics/sfw/spank"),
     "hug": ("https://nekos.best/api/v2/hug", "https://api.waifu.pics/sfw/hug"),
+    # Anime-style action GIFs only; the command text stays non-graphic roleplay.
+    "kill": ("https://nekos.best/api/v2/kick", "https://api.waifu.pics/sfw/kill"),
 }
 REACTION_GIF_FALLBACKS = {
     "kiss": ("https://media.tenor.com/-I2QfQvG8fEAAAAC/anime-kiss.gif", "https://media.giphy.com/media/10UVJ0IXjUbPug/giphy.gif"),
     "slap": ("https://media.tenor.com/v1a5sM-9VnoAAAAC/anime-slap.gif", "https://media.giphy.com/media/3XlEk2RxPS1m8/giphy.gif"),
-    # No slap fallback here: only show a GIF when a spank-category API returns one.
     "spank": (),
     "hug": ("https://media.tenor.com/1XqT5gW0AAAAM/anime-hug.gif", "https://media.giphy.com/media/od5H3PmEG5EVq/giphy.gif"),
+    "kill": (),
 }
 
 
@@ -77,10 +78,12 @@ class HugReturnView(discord.ui.View):
         button.disabled = True
         embed = discord.Embed(
             description=f"🤗 {self.recipient.mention} le devuelve el abrazo a {self.initiator.mention}.",
-            color=discord.Color.pink(),
+            color=discord.Color.blurple(),
         )
         embed.set_author(name=f"{self.recipient} 🤗 {self.initiator}", icon_url=self.recipient.display_avatar.url)
-        embed.set_image(url=await random_anime_gif("hug"))
+        image = await random_anime_gif("hug")
+        if image:
+            embed.set_image(url=image)
         await interaction.response.edit_message(embed=embed, view=self, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
 
 
@@ -150,16 +153,12 @@ async def handle_reaction_command(message, content):
         size = random.randint(1, 40)
         embed = discord.Embed(
             description=f"La banana de {target.mention} mide **{size} cm** 🍌",
-            color=discord.Color.green(),
+            color=discord.Color.blurple(),
         )
         embed.set_author(name=str(target), icon_url=target.display_avatar.url)
         embed.set_image(url=random.choice(BANANA_GIFS))
         embed.set_footer(text=f"Evaluación de la banana de {target}", icon_url=target.display_avatar.url)
-        await message.reply(
-            embed=embed,
-            mention_author=False,
-            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-        )
+        await message.reply(embed=embed, mention_author=False, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         return True
 
     if command in ("?hug", "?spank"):
@@ -171,37 +170,24 @@ async def handle_reaction_command(message, content):
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 target = None
         if target is None:
-            await message.reply(f"Menciona o responde a alguien con `{command}`.", mention_author=False)
+            await message.reply(f"Menciona o responde a alguien con `{command}.", mention_author=False)
             return True
         if target.bot or target.id == message.author.id:
             await message.reply("Menciona o responde a otra persona distinta de ti.", mention_author=False)
             return True
         if command == "?hug":
-            embed = discord.Embed(
-                description=f"🤗 {message.author.mention} ha abrazado a {target.mention}.",
-                color=discord.Color.pink(),
-            )
+            embed = discord.Embed(description=f"🤗 {message.author.mention} ha abrazado a {target.mention}.", color=discord.Color.blurple())
             embed.set_author(name=f"{message.author} 🤗 {target}", icon_url=message.author.display_avatar.url)
-            embed.set_image(url=await random_anime_gif("hug"))
-            await message.reply(
-                embed=embed,
-                view=HugReturnView(message.author, target),
-                mention_author=False,
-                allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-            )
+            image = await random_anime_gif("hug")
+            if image:
+                embed.set_image(url=image)
+            await message.reply(embed=embed, view=HugReturnView(message.author, target), mention_author=False, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
             return True
-        embed = discord.Embed(
-            description=f"🍑 {message.author.mention} le da una palmadita traviesa a {target.mention}.",
-            color=discord.Color.orange(),
-        )
+        embed = discord.Embed(description=f"🍑 {message.author.mention} le da una palmadita juguetona en la ropa a {target.mention}. *(Broma amistosa.)*", color=discord.Color.blurple())
         image = await random_anime_gif("spank")
         if image:
             embed.set_image(url=image)
-        await message.reply(
-            embed=embed,
-            mention_author=False,
-            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-        )
+        await message.reply(embed=embed, mention_author=False, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         return True
 
     if command not in ("?kiss", "?slap"):
@@ -225,17 +211,11 @@ async def handle_reaction_command(message, content):
         return True
     action = "kiss" if command == "?kiss" else "slap"
     verb = "ha besado a" if action == "kiss" else "ha abofeteado a"
-    embed = discord.Embed(
-        description=f"{'💋' if action == 'kiss' else '👋'} {message.author.mention} {verb} {target.mention}.",
-        color=discord.Color.blurple(),
-    )
-    embed.set_image(url=await random_anime_gif(action))
-    await message.reply(
-        embed=embed,
-        view=ReactionChoiceView(message.author, target, action),
-        mention_author=False,
-        allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-    )
+    embed = discord.Embed(description=f"{'💋' if action == 'kiss' else '👋'} {message.author.mention} {verb} {target.mention}.", color=discord.Color.blurple())
+    image = await random_anime_gif(action)
+    if image:
+        embed.set_image(url=image)
+    await message.reply(embed=embed, view=ReactionChoiceView(message.author, target, action), mention_author=False, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
     return True
 '''
 
