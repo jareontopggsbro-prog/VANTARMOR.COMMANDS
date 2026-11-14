@@ -10,6 +10,7 @@ from global_commands_patch import patch_app_file as patch_global_commands
 from ticket_image_patch import patch_app_file as patch_ticket_image
 from blue_reaction_embeds_patch import patch_app_file as patch_blue_reaction_embeds
 from premium_security_patch import patch_app_file as patch_premium_security
+from dedupe_backup_command import remove_backup_commands
 from guild_profile_settings import install_guild_profile_settings
 from profile_upload_support import install_profile_upload_support
 import web_server
@@ -49,9 +50,11 @@ def main():
     fix_welcome_async_declaration()
     fix_optional_import()
 
+    # Make the generated backup slash command idempotent across container restarts.
+    remove_backup_commands(APP_FILE)
+
     # Install the base message-command dispatcher first, then extend it with
-    # reaction/roleplay commands. Do not re-run the base patch afterward: it
-    # intentionally replaces its generated block and would remove extensions.
+    # reaction/roleplay commands. Do not re-run the base patch afterward.
     patch_message_features(APP_FILE)
     patch_reaction_commands(APP_FILE)
     patch_announcement(APP_FILE)
