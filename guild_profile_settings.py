@@ -7,6 +7,7 @@ import base64
 import ipaddress
 import io
 import json
+import os
 import socket
 import urllib.error
 import urllib.parse
@@ -82,7 +83,9 @@ def _download_avatar(url):
 
 def _manageable_guild_ids(handler, session):
     try:
-        guilds = handler.server.discord_request("/users/@me/guilds", token=session["access_token"])
+        # discord_request is a module helper; handler.server is the HTTPServer instance.
+        import web_server
+        guilds = web_server.discord_request("/users/@me/guilds", token=session["access_token"])
     except (urllib.error.HTTPError, urllib.error.URLError, OSError, ValueError):
         raise ValueError("No pude consultar tus servidores de Discord; inicia sesión otra vez.")
     result = {}
@@ -93,19 +96,19 @@ def _manageable_guild_ids(handler, session):
     return result
 
 
-def _require_bot_in_guild(guild_id):
-    token = __import__("os").getenv("DISCORD_TOKEN", "").strip()
+def _bot_member_token(guild_id):
+    token = os.getenv("DISCORD_TOKEN", "").strip()
     if not token:
         raise ValueError("Falta configurar DISCORD_TOKEN en Railway.")
     try:
         _discord_json(f"/guilds/{guild_id}", token=token)
     except (urllib.error.HTTPError, urllib.error.URLError, OSError, ValueError) as error:
-        raise ValueError("El bot no está en ese servidor o no puede acceder a él.") from error
+        raise ValueError("El bot no está unido a ese servidor o ya no tiene acceso.") from error
     return token
 
 
 def install_guild_profile_settings(handler_class):
-    """Wrap the existing static-site handler with the server-profile API."""
+    """Expose account settings, enforcing user authority and bot guild membership."""
     old_get = handler_class.do_GET
     old_post = handler_class.do_POST
 
@@ -117,18 +120,15 @@ def install_guild_profile_settings(handler_class):
         if not session:
             return self.send_error_json("Inicia sesión con Discord.", 401)
         try:
-            guilds = _manageable_guild_ids(self, session)
-            token = __import__("os").getenv("DISCORD_TOKEN", "").strip()
-            if not token:
-                raise ValueError("Falta configurar DISCORD_TOKEN en Railway.")
-            visible = []
-            for guild_id, name in guilds.items():
+            manageable = _manageable_guild_ids(self, session)
+            present = []
+            for guild_id, name in manageable.items():
                 try:
-                    _discord_json(f"/guilds/{guild_id}", token=token)
-                except (urllib.error.HTTPError, urllib.error.URLError, OSError, ValueError):
+                    _bot_member_token(guild_id)
+                except ValueError:
                     continue
-                visible.append({"id": guild_id, "name": name})
-            return self.send_json({"guilds": visible})
+                present.append({"id": guild_id, "name": name})
+            return self.send_json({"guilds": present})
         except ValueError as error:
             return self.send_error_json(str(error), 502)
 
@@ -153,26 +153,25 @@ def install_guild_profile_settings(handler_class):
             manageable = _manageable_guild_ids(self, session)
             if guild_id not in manageable:
                 raise ValueError("Debes ser propietario o administrador del servidor seleccionado.")
-            token = _require_bot_in_guild(guild_id)
+            token = _bot_member_token(guild_id)
             payload = {"nick": nickname or None}
             if avatar_url:
                 payload["avatar"] = _download_avatar(avatar_url)
             else:
                 payload["avatar"] = None
             _discord_json(f"/guilds/{guild_id}/members/@me", token=token, method="PATCH", payload=payload)
-            return self.send_json({"ok": True, "message": f"Ajustes visuales actualizados para {manageable[guild_id]}."})
+            return self.send_json({"ok": True, "message": f"Cambios aplicados únicamente al perfil del bot en **{manageable[guild_id]}**."})
         except (ValueError, json.JSONDecodeError) as error:
             return self.send_error_json(str(error), 400)
         except urllib.error.HTTPError as error:
             if error.code == 403:
-                return self.send_error_json("Discord rechazó el cambio. Comprueba que el bot esté en el servidor y tenga permisos para cambiar su apodo.", 403)
+                return self.send_error_json("Discord rechazó el cambio. Comprueba permisos del bot y jerarquía de roles.", 403)
             return self.send_error_json("Discord no pudo actualizar el perfil del bot.", 502)
         except (urllib.error.URLError, OSError) as error:
             return self.send_error_json("No se pudo conectar con Discord.", 502)
 
     handler_class.do_GET = do_get
     handler_class.do_POST = do_post
-    handler_class.server = __import__("web_server")
 
 
 __all__ = ["install_guild_profile_settings"]

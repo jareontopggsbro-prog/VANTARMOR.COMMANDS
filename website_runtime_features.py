@@ -153,6 +153,37 @@ def install_dynamic_tab_support(app_js):
     )
     if "window.activateTab = activateTab;" not in source:
         source = source.replace("function toast(message) {", "window.activateTab = activateTab;\n\nfunction toast(message) {", 1)
+
+    # The account selector must consume the filtered server list, not the raw
+    # OAuth list. The API only returns guilds both managed by the user and with
+    # the bot installed; the POST endpoint independently verifies this again.
+    source = source.replace(
+        'const result = await api("/api/settings/guilds");',
+        'const result = await api("/api/guilds");',
+    )
+    selector_anchor = '  const status = $("#guild-profile-message");\n'
+    selector_note = '''  const scopeNote = document.createElement("p");
+  scopeNote.id = "guild-profile-scope-note";
+  scopeNote.textContent = "Selecciona un servidor donde Vantarmor esté instalado. El apodo y el avatar se aplicarán únicamente al perfil del bot en ese servidor.";
+  if (!$("#guild-profile-scope-note")) select.insertAdjacentElement("beforebegin", scopeNote);
+'''
+    if "guild-profile-scope-note" not in source and selector_anchor in source:
+        source = source.replace(selector_anchor, selector_anchor + selector_note, 1)
+
+    guilds_anchor = '  const guilds = result.data.guilds || [];\n'
+    guilds_guidance = '''  if (select.options.length) select.options[0].textContent = "Elige el servidor donde aplicar los cambios";
+  status.textContent = result.data.guilds?.length
+    ? "Solo aparecen servidores que administras y donde el bot está unido."
+    : "No se encontraron servidores administrables donde el bot esté unido.";
+  select.addEventListener("change", () => {
+    status.textContent = select.value
+      ? `Los próximos cambios se aplicarán únicamente en ${select.selectedOptions[0].text}.`
+      : "Selecciona un servidor donde Vantarmor esté instalado.";
+  });
+'''
+    if "Solo aparecen servidores que administras" not in source and guilds_anchor in source:
+        source = source.replace(guilds_anchor, guilds_anchor + guilds_guidance, 1)
+
     app_js.write_text(source, encoding="utf-8")
 
 
