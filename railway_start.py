@@ -13,6 +13,13 @@ from premium_security_patch import patch_app_file as patch_premium_security
 from dedupe_backup_command import remove_backup_commands
 from kill_roleplay_buttons_patch import patch_app_file as patch_kill_roleplay_buttons
 from giveaway_patch import patch_app_file as patch_giveaway
+from separate_reaction_button_messages import patch_app_file as patch_separate_button_messages
+from website_runtime_features import (
+    install_bot_status_hooks,
+    install_dynamic_tab_support,
+    install_website_api,
+    install_website_assets,
+)
 from guild_profile_settings import install_guild_profile_settings
 from profile_upload_support import install_profile_upload_support
 import web_server
@@ -22,6 +29,7 @@ ROOT = Path(__file__).resolve().parent
 APP_FILE = ROOT / "app.py"
 WELCOME_FILE = ROOT / "welcome_system.py"
 SECURITY_FILE = ROOT / "premium_security_system.py"
+WEB_APP_JS = ROOT / "website" / "assets" / "app.js"
 
 
 def fix_welcome_async_declaration():
@@ -64,6 +72,8 @@ def main():
     patch_global_commands(APP_FILE)
     patch_kill_roleplay_buttons(APP_FILE)
     patch_giveaway(APP_FILE)
+    patch_separate_button_messages(APP_FILE)
+    install_bot_status_hooks(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
     required_handlers = (
@@ -74,6 +84,7 @@ def main():
         'label="💀 Vengar"',
         'label="👻 Asustar"',
         "class GiveawayView(",
+        "import website_runtime_features",
     )
     missing = [item for item in required_handlers if item not in final_source]
     if missing:
@@ -81,6 +92,9 @@ def main():
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
+    install_website_api(web_server.Handler)
+    install_website_assets()
+    install_dynamic_tab_support(WEB_APP_JS)
     start_website()
     print("Iniciando Vantarmor Commands...")
     runpy.run_path(str(APP_FILE), run_name="__main__")
