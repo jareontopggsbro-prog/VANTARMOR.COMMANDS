@@ -20,6 +20,7 @@ from website_runtime_features import (
     install_website_api,
     install_website_assets,
 )
+from persistent_web_sessions import install_persistent_sessions
 from guild_profile_settings import install_guild_profile_settings
 from profile_upload_support import install_profile_upload_support
 import web_server
@@ -92,6 +93,7 @@ def main():
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
+    install_persistent_sessions(web_server.Handler)
     install_website_api(web_server.Handler)
     install_website_assets()
     install_dynamic_tab_support(WEB_APP_JS)
