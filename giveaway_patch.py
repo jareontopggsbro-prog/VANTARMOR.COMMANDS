@@ -1,8 +1,8 @@
 from pathlib import Path
 import re
 
-MARKER = "# VANTARMOR_GIVEAWAY_IMPLEMENTATION_V1"
-HELPERS = r'''# VANTARMOR_GIVEAWAY_IMPLEMENTATION_V1
+MARKER = "# VANTARMOR_GIVEAWAY_IMPLEMENTATION_V2"
+HELPERS = r'''# VANTARMOR_GIVEAWAY_IMPLEMENTATION_V2
 class GiveawayView(discord.ui.View):
     """In-memory giveaway entries; no moderation or external side effects."""
     def __init__(self):
@@ -32,8 +32,8 @@ class GiveawayView(discord.ui.View):
             item.disabled = True
 
 
-async def finish_giveaway(message, view, winners_count, prize):
-    await asyncio.sleep(message._giveaway_duration)
+async def finish_giveaway(message, view, winners_count, prize, seconds):
+    await asyncio.sleep(seconds)
     view.close()
     participants = list(view.entries.values())
     winners = random.sample(participants, min(winners_count, len(participants))) if participants else []
@@ -71,8 +71,7 @@ async def giveaway(interaction: discord.Interaction, ganadores: app_commands.Ran
     embed = discord.Embed(title="🎉 ¡Sorteo!", description=f"**Premio:** {prize}\\n**Ganadores:** {ganadores}\\n**Termina en:** {duracion}\\nPulsa el botón para participar.", color=discord.Color.blurple())
     await interaction.response.send_message(embed=embed, view=view)
     message = await interaction.original_response()
-    message._giveaway_duration = seconds
-    asyncio.create_task(finish_giveaway(message, view, int(ganadores), prize))
+    asyncio.create_task(finish_giveaway(message, view, int(ganadores), prize, seconds))
 
 
 '''
@@ -80,22 +79,29 @@ async def giveaway(interaction: discord.Interaction, ganadores: app_commands.Ran
 
 def patch_app_file(app_file: Path) -> None:
     source = app_file.read_text(encoding="utf-8")
-    command_marker = '@tree.command(name="sorteo", description="Crea un sorteo en este canal", guild=GUILD)'
-    # Strip previously generated giveaway helpers, if Railway's writable layer
-    # survived a restart, before reinstalling them from this committed patch.
+    generated_command = '@tree.command(name="sorteo", description="Crea un sorteo en este canal", guild=GUILD)'
+
+    # Remove the previous generated helper block, if a writable container layer
+    # retained it, and remove any old /sorteo implementation without depending
+    # on neighboring command names (other patches may replace the cookie block).
     if MARKER in source:
-        start = source.index(MARKER)
-        end = source.index(command_marker, start)
-        source = source[:start] + source[end:]
+        helper_start = source.index(MARKER)
+        command_start = source.find(generated_command, helper_start)
+        if command_start >= 0:
+            source = source[:helper_start] + source[command_start:]
+    source = re.sub(
+        r'(?ms)^@tree\.command\(name="sorteo"[^\n]*\)\n.*?(?=^@tree\.command|^@client\.event|\Z)',
+        "",
+        source,
+    )
+    if MARKER in source:
+        source = re.sub(r'(?ms)^# VANTARMOR_GIVEAWAY_IMPLEMENTATION_V\d+\n.*?(?=^@tree\.command|^@client\.event|\Z)', "", source, count=1)
 
-    pattern = r'(?ms)^@tree\.command\(name="sorteo"[^\n]*\)\n.*?(?=^@tree\.command|\Z)'
-    source, count = re.subn(pattern, "", source, count=1)
-    if count != 1:
-        raise RuntimeError("No encontré el comando /sorteo para actualizarlo.")
-
-    anchor = '@tree.command(name="cookie", description="Juego de tocar la galleta", guild=GUILD)'
+    # Insert generated helpers/command directly before the message event,
+    # which is a stable top-level anchor across the app's transformation patches.
+    anchor = "@client.event\nasync def on_message(message):\n"
     if anchor not in source:
-        raise RuntimeError("No encontré el lugar para insertar el comando /sorteo.")
+        raise RuntimeError("No encontré on_message para instalar el comando /sorteo.")
     source = source.replace(anchor, HELPERS + "\n\n" + COMMAND + anchor, 1)
     app_file.write_text(source, encoding="utf-8")
 

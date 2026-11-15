@@ -1,8 +1,7 @@
-"""Make message-component outcomes arrive as new channel messages."""
 from pathlib import Path
 
 
-TARGET_CLASSES = ("HugReturnView", "ReactionChoiceView", "KillRoleplayView")
+TARGET_CLASSES = ("HugReturnView", "ReactionChoiceView", "KillRoleplayView", "SpankReturnView")
 
 
 def patch_app_file(app_file: Path) -> None:
@@ -12,9 +11,9 @@ def patch_app_file(app_file: Path) -> None:
         if start < 0:
             continue
         next_class = source.find("\nclass ", start + 1)
-        end = next_class if next_class >= 0 else source.find("\nasync def handle_reaction_command", start)
-        if end < 0:
-            end = len(source)
+        handler_end = source.find("\nasync def handle_reaction_command", start)
+        possible_ends = [position for position in (next_class, handler_end) if position >= 0]
+        end = min(possible_ends) if possible_ends else len(source)
         block = source[start:end]
         updated = []
         changed = False
